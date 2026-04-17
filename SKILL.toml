@@ -1,0 +1,5 @@
+name = "onvif-camera"
+version = "0.1.0"
+description = "Turn ONVIF-compatible IP cameras into an AI watcher with conversational setup, PTZ control, and visual inspection workflows"
+author = "eyespot.ai"
+tags = ["camera", "onvif", "iot", "vision", "ai-watcher"]

@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# OpenClaw Local configs
+scripts/config.ini
+scripts/current_task.json
+*.jpg
+*.mp4
+*.m4a
