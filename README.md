@@ -30,9 +30,10 @@
 | Camera info | 读取摄像头厂商、型号、固件版本、序列号 |
 | Stream URI | 获取 RTSP 视频流地址 |
 | Snapshot URI | 获取快照地址 |
-| PTZ control | 上下左右、缩放、停止、归位 |
+| PTZ control | 上下左右、缩放、停止、归位，并带串行保护与自动停止机制 |
 | Conversational setup | 可由 Agent 通过对话引导完成配置 |
 | Watcher workflow | 可扩展成定时巡检和异常看护任务 |
+| Safe capture | 正式提供抓拍命令，并默认输出压缩后的 JPG |
 
 ## Install with an agent
 
@@ -61,6 +62,8 @@ cd AI-watcher
 bash scripts/setup.sh
 ```
 
+安装和运行时请尽量使用同一个 `python3` 解释器，避免多 Python 环境下出现依赖装好了但命令找不到模块的情况。
+
 ### 3. Create your local camera config
 
 复制示例配置，并填入你的摄像头信息。
@@ -85,10 +88,11 @@ password = your_password
 python3 scripts/onvif_ctrl.py info
 python3 scripts/onvif_ctrl.py stream_uri
 python3 scripts/onvif_ctrl.py snapshot_uri
+python3 scripts/onvif_ctrl.py capture --output /tmp/snapshot.jpg --max-width 1280 --quality 85
 python3 scripts/onvif_ctrl.py ptz --act left --duration 1.0
 ```
 
-如果能正常返回 JSON，说明摄像头已经接好了。
+如果能正常返回 JSON，说明摄像头已经接好了。对于抓拍，当前推荐优先使用新的 `capture` 命令，而不是自己直接把原始 RTSP 截帧结果塞进消息正文。`capture` 会输出压缩后的 JPG，更适合 MCP、企业微信或其他有 payload 限制的通道。
 
 ## How it feels in practice
 
@@ -104,6 +108,8 @@ python3 scripts/onvif_ctrl.py ptz --act left --duration 1.0
 ```
 
 这比单纯返回一个 RTSP 地址更有用，因为它更接近真实的自动巡检流程。
+
+另外，PTZ 控制现在默认要求带正数 `duration`，这样每次转动后都会自动发送 `stop`，可以降低部分摄像头在连续请求时出现 500 报错或卡死的概率。
 
 ## Good use cases
 

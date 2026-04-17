@@ -1,1 +1,2 @@
 onvif-zeep==0.2.12
+Pillow>=10.0.0
