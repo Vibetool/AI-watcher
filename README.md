@@ -1,74 +1,85 @@
-# ONVIF AI Watcher
+# AI Watcher
 
-**Turn any ONVIF IP camera into a conversational AI watcher.**
+**Turn any ONVIF camera into an AI watcher.**
 
-`ONVIF AI Watcher` 是一个面向 **OpenClaw** 生态的技能项目，用来把普通局域网 IP 摄像头升级为可通过自然语言配置、支持 **PTZ 控制**、**画面抓取**、**定时视觉巡检** 与 **证据闭环汇报** 的 AI 视觉节点。
+让一个普通的 ONVIF 摄像头，变成一个会看、会转、会定时巡检、还能带图汇报的 **AI 视觉节点**。
 
-它并不是一个“只会读流地址”的小脚本集合，而是一个更适合 Agent 工作流的摄像头能力层：让模型先连接设备、再拿到画面、再做巡检与异常分析，并且在汇报时强制附上原始截图，避免“看都没看就下结论”。
+`AI Watcher` 面向 **OpenClaw** 工作流设计。它把摄像头连接、RTSP 获取、PTZ 控制、定时巡检和基于截图的分析串成一条可执行链路，适合那些想让 Agent 真正“持续盯现场”的场景。
 
-## Why this project is interesting
+**No app. No cloud dashboard. No heavy setup.**  
+只要你的摄像头支持 ONVIF，就可以很快接入。
 
-很多摄像头项目的问题不在于“连不上设备”，而在于即使连上以后，也很难把它接入一个可靠的 Agent 工作流。这个项目的价值在于，它把 **设备控制**、**定时调度**、**视觉分析** 与 **反幻觉约束** 串成了一条清晰链路。
+## Why people may want this
 
-| 维度 | 本项目提供的能力 | 对实际使用的意义 |
-| --- | --- | --- |
-| 接入方式 | 通过对话完成摄像头配置 | 不需要手改配置文件，适合 Agent 场景 |
-| 设备能力 | 支持 ONVIF 信息读取、RTSP 流获取、PTZ 控制 | 既能“看”，也能“动” |
-| 自动化 | 可结合 Heartbeat 做周期性巡检 | 适合办公室、仓库、宠物、老人看护 |
-| 可信输出 | 强制基于真实抓拍画面汇报，并附原图 | 降低 AI 凭空描述场景的风险 |
-| 可扩展性 | 可继续扩展陌生人识别、归位校验、夜视策略等 | 适合做更强的自主安防 Agent |
+很多项目都能“连上摄像头”，但很少项目真正解决下面这个问题：**连上之后，怎样把摄像头变成 Agent 可持续调用的视觉能力，而不是一次性 demo。**
 
-## Core capabilities
+这个仓库的重点不是花哨 UI，而是把几个关键能力做好：
 
-当前仓库已经具备一套可落地的基础能力，既能支撑演示，也能作为后续增强的底座。
+| 你需要的结果 | AI Watcher 提供什么 |
+| --- | --- |
+| 让 Agent 看现场 | 获取 RTSP / Snapshot URI，接入图像分析链路 |
+| 让 Agent 改变视角 | 支持 PTZ 控制、停止与归位 |
+| 让 Agent 定时巡检 | 可接入 OpenClaw Heartbeat 做周期任务 |
+| 让结果可信 | 分析必须基于真实截图，强调附图返回 |
+| 让部署不折腾 | 安装和配置都尽量保持轻量 |
+
+## What it does
 
 | 能力 | 说明 |
 | --- | --- |
-| Conversational setup | 通过 `setup.sh` 和配置向导完成依赖安装与摄像头参数写入 |
-| Camera info query | 读取摄像头厂商、型号、固件版本、序列号等信息 |
-| Stream & snapshot URI | 获取 RTSP 视频流地址与快照地址，便于后续画面抓取 |
-| PTZ control | 支持上下左右移动、缩放、停止与归位 |
-| AI Watcher workflow | 可结合 OpenClaw Heartbeat 建立周期性巡检任务 |
-| Anti-hallucination discipline | 分析结论必须基于真实截图，并要求附图返回 |
+| Camera info | 读取摄像头厂商、型号、固件版本、序列号 |
+| Stream URI | 获取 RTSP 视频流地址 |
+| Snapshot URI | 获取快照地址 |
+| PTZ control | 上下左右、缩放、停止、归位 |
+| Conversational setup | 可由 Agent 通过对话引导完成配置 |
+| Watcher workflow | 可扩展成定时巡检和异常看护任务 |
 
-## Typical scenarios
+## Install with an agent
 
-这个项目最适合那些“不是只想接个摄像头，而是想让 Agent 真正持续看着现场”的场景。
+把这个仓库交给你的 Agent，然后说一句：
 
-### 1. 办公室或门店夜间看护
+> 帮我安装并配置 AI-watcher
 
-你可以让 Agent 在下班后定时查看办公区、前台或门店入口。如果发现有人活动、灯光异常或物体摆放明显变化，再把截图和简短分析推送出来。
+Agent 会完成依赖安装，并引导你填写摄像头的 IP、端口、用户名和密码。
 
-### 2. 老人、宠物或家庭场景看护
+如果你的环境已经接好了 OpenClaw，这通常就是最简单的接入方式。
 
-对于家庭用户，这个项目很适合做“定时看一眼”的轻量看护。比如中午检查宠物活动情况，或者定点查看老人是否在固定区域内正常活动。
+## Manual setup
 
-### 3. 自主巡检与安防原型
+如果你想手动安装，也只需要几步。
 
-如果继续扩展调度、记忆和规则，这个仓库也可以作为一个自主安防 Agent 的雏形，包括自动扫描、异常追踪、归位校验与事件升级。
+### 1. Clone the repo
 
-## Repository structure
+```bash
+git clone https://github.com/Vibetool/AI-watcher.git
+cd AI-watcher
+```
 
-| 路径 | 作用 |
-| --- | --- |
-| `README.md` | 面向项目使用者的说明文档 |
-| `SKILL.md` | 面向 Agent 的技能说明，定义安装、巡检与输出纪律 |
-| `SKILL.toml` | 技能元数据，用于包描述与发现 |
-| `scripts/onvif_ctrl.py` | 核心摄像头控制脚本 |
-| `scripts/setup.sh` | 依赖安装脚本 |
-| `scripts/setup_wizard.py` | 本地配置向导，可写入 `scripts/config.ini` |
-| `scripts/config.example.ini` | 示例配置模板 |
+### 2. Install dependencies
 
-## Quick start
+```bash
+bash scripts/setup.sh
+```
 
-如果你希望把它作为 OpenClaw 技能使用，建议按下面的方式接入。
+### 3. Create your local camera config
 
-1. 将仓库放入技能目录。
-2. 在对话中要求 Agent 安装并配置 `onvif-camera`。
-3. Agent 会安装 Python 依赖，并引导填写摄像头的 IP、端口、用户名和密码。
-4. 完成配置后，即可执行信息读取、RTSP 地址提取、PTZ 控制和后续巡检工作流。
+复制示例配置，并填入你的摄像头信息。
 
-### Example commands
+```bash
+cp scripts/config.example.ini scripts/config.ini
+```
+
+然后编辑 `scripts/config.ini`：
+
+```ini
+[camera]
+ip = 192.168.1.100
+port = 80
+username = your_username
+password = your_password
+```
+
+### 4. Test the connection
 
 ```bash
 python3 scripts/onvif_ctrl.py info
@@ -77,29 +88,57 @@ python3 scripts/onvif_ctrl.py snapshot_uri
 python3 scripts/onvif_ctrl.py ptz --act left --duration 1.0
 ```
 
+如果能正常返回 JSON，说明摄像头已经接好了。
+
+## How it feels in practice
+
+你可以把它理解成一个给 Agent 使用的“摄像头动作层”。
+
+```text
+用户说：去看一下办公室门口有没有人
+-> Agent 读取摄像头配置
+-> 获取视频流或截图
+-> 如有需要，控制 PTZ 转向
+-> 基于真实画面做分析
+-> 返回结论，并附上截图证据
+```
+
+这比单纯返回一个 RTSP 地址更有用，因为它更接近真实的自动巡检流程。
+
+## Good use cases
+
+| 场景 | 这个仓库能帮你做什么 |
+| --- | --- |
+| 办公室夜间看护 | 定时抓拍，发现异常活动时汇报 |
+| 仓库或门店巡检 | 按时间检查特定区域状态 |
+| 老人 / 宠物看护 | 定点查看并输出简短结论 |
+| 安防原型验证 | 作为更复杂 Agent 巡检系统的底座 |
+
+## Project structure
+
+| 路径 | 作用 |
+| --- | --- |
+| `README.md` | 项目说明 |
+| `SKILL.md` | 面向 Agent 的技能说明 |
+| `SKILL.toml` | 技能元数据 |
+| `scripts/onvif_ctrl.py` | ONVIF 控制主脚本 |
+| `scripts/setup.sh` | 依赖安装脚本 |
+| `scripts/setup_wizard.py` | 本地配置向导 |
+| `scripts/config.example.ini` | 配置模板 |
+
 ## Design principles
 
-这个项目最有特色的地方不是“多一个 ONVIF 控制脚本”，而是明确强调了 Agent 场景中的三个设计原则。
+这个项目刻意保持简单，因为它的目标不是做一个“大而全”的监控平台，而是做一个足够清晰、足够可靠的 Agent 能力层。
 
 | 原则 | 含义 |
 | --- | --- |
-| Evidence first | 所有分析先有图，再有结论 |
-| Control before intelligence | 先拿到稳定的设备控制能力，再叠加智能分析 |
-| Workflow over demo | 不只展示单次调用，而是服务于可持续巡检任务 |
-
-## What can be improved next
-
-如果要把这个项目继续打磨成更强的公开仓库，接下来最值得继续投入的方向包括：更丰富的错误处理、更多厂商兼容性验证、夜视与移动侦测事件接入，以及面向真实部署的告警通道集成。
+| Keep setup light | 安装和接入尽量简单 |
+| Evidence first | 先有截图，再有分析 |
+| Agent-ready | 设计上服务于自动化巡检，而不是手工操作为主 |
+| Build on open protocols | 基于 ONVIF，减少私有设备锁定 |
 
 ## Contributing
 
-欢迎提交 Issue 或 Pull Request，尤其是以下方向：
+如果你想继续把它做强，最值得补充的方向包括更多品牌兼容性、事件订阅、夜视策略、告警通道以及更强的巡检编排。
 
-| 方向 | 说明 |
-| --- | --- |
-| Camera compatibility | 增加不同品牌 ONVIF 摄像头的兼容性验证 |
-| Patrol workflows | 增加更完整的巡检与告警自动化流程 |
-| Event integration | 增加移动侦测、红外模式与外部通知能力 |
-| Reliability | 改善错误提示、配置校验与运行稳定性 |
-
-如果你想做的不只是“连上摄像头”，而是让摄像头变成一个能持续观察、按规则行动、并给出带证据结果的 Agent 视觉节点，这个项目的方向是对的。
+如果你想做的不是“再写一个摄像头脚本”，而是让摄像头真正成为 Agent 的眼睛，这个仓库就是为这个方向准备的。
