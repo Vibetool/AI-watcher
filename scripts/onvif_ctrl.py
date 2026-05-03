@@ -10,7 +10,13 @@ import sys
 import tempfile
 import time
 from urllib.parse import urlparse
-from urllib.request import HTTPBasicAuthHandler, HTTPPasswordMgrWithDefaultRealm, Request, build_opener
+from urllib.request import (
+    HTTPBasicAuthHandler,
+    HTTPDigestAuthHandler,
+    HTTPPasswordMgrWithDefaultRealm,
+    Request,
+    build_opener,
+)
 
 CONFIG_FILENAME = 'config.ini'
 PTZ_LOCK_FILE = '/tmp/onvif_camera_ptz.lock'
@@ -22,6 +28,8 @@ DEFAULT_CAPTURE_OUTPUT = '/tmp/snapshot.jpg'
 DEFAULT_CAPTURE_MAX_WIDTH = 1280
 DEFAULT_CAPTURE_QUALITY = 85
 DEFAULT_HTTP_TIMEOUT_SECONDS = 10
+DEFAULT_ONVIF_CONNECT_TIMEOUT_SECONDS = 10
+DEFAULT_ONVIF_OPERATION_TIMEOUT_SECONDS = 15
 
 
 def get_config():
@@ -272,7 +280,13 @@ def download_snapshot_file(snapshot_uri, user, password, temp_path):
 
     password_manager = HTTPPasswordMgrWithDefaultRealm()
     password_manager.add_password(None, f'{parsed.scheme}://{parsed.netloc}', user, password)
-    opener = build_opener(HTTPBasicAuthHandler(password_manager))
+    # Many ONVIF cameras (Hikvision/Dahua/Reolink/Axis) use Digest auth on the
+    # snapshot endpoint; register both Basic and Digest handlers so the opener
+    # can satisfy whichever WWW-Authenticate scheme the camera challenges with.
+    opener = build_opener(
+        HTTPBasicAuthHandler(password_manager),
+        HTTPDigestAuthHandler(password_manager),
+    )
     request = Request(snapshot_uri, headers={'User-Agent': 'AI-Watcher/1.0'})
 
     with opener.open(request, timeout=DEFAULT_HTTP_TIMEOUT_SECONDS) as response:
@@ -390,11 +404,26 @@ def main():
         )
         sys.exit(1)
 
+    # Fail fast on missing PTZ action before opening a SOAP connection — the
+    # ONVIFCamera constructor performs network I/O (GetCapabilities), so an
+    # invalid invocation should not pay that latency.
+    if parsed.command == 'ptz' and not parsed.act:
+        print(json.dumps({'ok': False, 'error': 'Missing --act argument for PTZ command'}))
+        sys.exit(1)
+
     try:
         import onvif
+        from zeep.transports import Transport
 
         wsdl_dir = os.path.join(os.path.dirname(os.path.dirname(onvif.__file__)), 'wsdl')
-        cam = onvif.ONVIFCamera(ip, port, user, password, wsdl_dir)
+        # Bound network calls so an unreachable camera fails fast (default zeep
+        # transport has timeout=300 and operation_timeout=None which means we'd
+        # otherwise hang on the OS-level TCP timeout, ~75s on Linux/macOS).
+        transport = Transport(
+            timeout=DEFAULT_ONVIF_CONNECT_TIMEOUT_SECONDS,
+            operation_timeout=DEFAULT_ONVIF_OPERATION_TIMEOUT_SECONDS,
+        )
+        cam = onvif.ONVIFCamera(ip, port, user, password, wsdl_dir, transport=transport)
 
         if parsed.command == 'info':
             result = cmd_info(cam)
@@ -413,10 +442,8 @@ def main():
                 quality=parsed.quality,
             )
         elif parsed.command == 'ptz':
-            if not parsed.act:
-                result = {'error': 'Missing --act argument for PTZ command'}
-            else:
-                result = cmd_ptz(cam, parsed.act, parsed.duration)
+            # parsed.act is guaranteed non-empty: validated before ONVIFCamera()
+            result = cmd_ptz(cam, parsed.act, parsed.duration)
         else:
             result = {'error': 'Command not yet implemented'}
 
