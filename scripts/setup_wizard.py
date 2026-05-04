@@ -48,21 +48,24 @@ def discover_cameras():
 
 def main():
     print("=== ONVIF AI Watcher Setup ===")
-    know_ip = input("Do you know the IP address of your ONVIF camera? (y/n): ").strip().lower()
-    
+    print("Tip: leave the IP blank to auto-discover cameras on the local network.")
+    know_ip = input("Do you know the IP address of your ONVIF camera? (y/n, blank = auto-discover): ").strip().lower()
+
     ip = ""
     if know_ip == 'y':
-        ip = input("Enter camera IP address: ").strip()
-    else:
+        ip = input("Enter camera IP address (leave blank to auto-discover): ").strip()
+
+    if not ip:
         ips = discover_cameras()
         if not ips:
-            print("No ONVIF cameras found. Please check your network and try again.")
+            print("No ONVIF cameras found. Make sure the camera is on the same Wi-Fi (2.4 GHz)")
+            print("and same subnet/VLAN as this device, then try again.")
             sys.exit(1)
-        
+
         print(f"Found {len(ips)} camera(s):")
         for i, addr in enumerate(ips):
             print(f"[{i+1}] {addr}")
-        
+
         choice = input("Select a camera [1-{}]: ".format(len(ips))).strip()
         try:
             ip = ips[int(choice)-1]
@@ -70,11 +73,13 @@ def main():
             print("Invalid selection.")
             sys.exit(1)
 
-    port = input("Enter ONVIF port (default 80): ").strip()
+    port = input("Enter ONVIF port (default 80, leave blank for default): ").strip()
     if not port:
         port = "80"
 
-    username = input("Enter camera username (e.g. admin): ").strip()
+    username = input("Enter camera username (default 'admin', leave blank for default): ").strip()
+    if not username:
+        username = "admin"
     password = getpass.getpass("Enter camera password: ").strip()
 
     config = configparser.ConfigParser()

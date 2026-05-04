@@ -31,6 +31,58 @@ DEFAULT_HTTP_TIMEOUT_SECONDS = 10
 DEFAULT_ONVIF_CONNECT_TIMEOUT_SECONDS = 10
 DEFAULT_ONVIF_OPERATION_TIMEOUT_SECONDS = 15
 
+# Stable error codes — Agents branch on these instead of parsing free-form
+# error strings. Add new codes when a new failure mode is introduced; never
+# rename an existing code.
+ERROR_AUTH_FAILED = 'AUTH_FAILED'
+ERROR_UNREACHABLE = 'UNREACHABLE'
+ERROR_TIMEOUT = 'TIMEOUT'
+ERROR_NOT_ONVIF = 'NOT_ONVIF'
+ERROR_NO_PTZ = 'NO_PTZ'
+ERROR_NO_MEDIA_PROFILE = 'NO_MEDIA_PROFILE'
+ERROR_PTZ_BUSY = 'PTZ_BUSY'
+ERROR_PTZ_INVALID_DURATION = 'PTZ_INVALID_DURATION'
+ERROR_CAPTURE_FAILED = 'CAPTURE_FAILED'
+ERROR_INVALID_CONFIG = 'INVALID_CONFIG'
+ERROR_INVALID_ARGS = 'INVALID_ARGS'
+ERROR_UNSUPPORTED = 'UNSUPPORTED'
+ERROR_DEPENDENCY_MISSING = 'DEPENDENCY_MISSING'
+ERROR_UNKNOWN = 'UNKNOWN'
+
+
+def classify_error(exc):
+    """Map an exception (or string) to a stable error code.
+
+    Pattern-matches on both the exception class name and its string form so
+    the same classifier works whether we got a zeep/urllib/onvif exception
+    or a plain re-raised message.
+    """
+    text = str(exc).lower()
+    name = type(exc).__name__ if isinstance(exc, BaseException) else ''
+
+    if name in ('TimeoutError', 'ConnectTimeoutError', 'ReadTimeoutError'):
+        return ERROR_TIMEOUT
+    if 'timeout' in text or 'timed out' in text:
+        return ERROR_TIMEOUT
+    if any(s in text for s in ('401', 'unauthorized', 'authentication failed', 'authenticationfailed', 'not authorized', 'sender not authorized')):
+        return ERROR_AUTH_FAILED
+    if any(s in text for s in (
+        'no route to host', 'network is unreachable', 'connection refused',
+        'host is down', 'name or service not known', 'nodename nor servname',
+        'failed to establish a new connection', 'max retries exceeded',
+    )):
+        return ERROR_UNREACHABLE
+    if any(s in text for s in ('xmlsyntaxerror', 'not well-formed', 'expected element', 'no element found')):
+        return ERROR_NOT_ONVIF
+    return ERROR_UNKNOWN
+
+
+def err(message, code=None, source_exc=None):
+    """Build a structured error response: {'error': <human msg>, 'error_code': <stable code>}."""
+    if code is None:
+        code = classify_error(source_exc) if source_exc is not None else ERROR_UNKNOWN
+    return {'error': str(message), 'error_code': code}
+
 
 def get_config():
     config = configparser.ConfigParser()
@@ -55,14 +107,20 @@ def cmd_info(cam):
             'HardwareId': getattr(resp, 'HardwareId', ''),
         }
     except Exception as exc:
-        return {'error': str(exc)}
+        return err(exc, source_exc=exc)
+
+
+class NoMediaProfileError(Exception):
+    """Raised when the camera reports no media profiles — usually means the
+    device speaks ONVIF for device-management but not for media (rare) or is
+    misconfigured. Mapped to ERROR_NO_MEDIA_PROFILE upstream."""
 
 
 def get_media_profile(cam):
     media = cam.create_media_service()
     profiles = media.GetProfiles()
     if not profiles:
-        raise Exception('No media profiles found on device')
+        raise NoMediaProfileError('No media profiles found on device')
     return media, profiles[0]
 
 
@@ -182,8 +240,8 @@ def cmd_ptz(cam, act, duration=0.5):
 
     try:
         ptz = cam.create_ptz_service()
-    except Exception:
-        return {'error': 'Camera does not support PTZ or PTZ service could not be initialized'}
+    except Exception as exc:
+        return err('Camera does not support PTZ or PTZ service could not be initialized', code=ERROR_NO_PTZ, source_exc=exc)
 
     profile_token = profile.token
 
@@ -205,10 +263,13 @@ def cmd_ptz(cam, act, duration=0.5):
                     save_ptz_state('home')
                     return {'status': 'homed'}
                 except Exception as exc:
-                    return {'error': f'GotoHomePosition failed: {str(exc)}'}
+                    return err(f'GotoHomePosition failed: {str(exc)}', source_exc=exc)
 
             if duration <= 0:
-                return {'error': 'For safety, PTZ move duration must be greater than 0 so the camera can auto-stop.'}
+                return err(
+                    'For safety, PTZ move duration must be greater than 0 so the camera can auto-stop.',
+                    code=ERROR_PTZ_INVALID_DURATION,
+                )
 
             req = build_ptz_move_request(ptz, profile_token, act)
             used_retry = False
@@ -236,13 +297,13 @@ def cmd_ptz(cam, act, duration=0.5):
                 }
             except Exception as exc:
                 safe_ptz_stop(ptz, profile_token)
-                return {'error': f'PTZ move failed: {str(exc)}'}
+                return err(f'PTZ move failed: {str(exc)}', source_exc=exc)
             finally:
                 if move_started:
                     safe_ptz_stop(ptz, profile_token)
                     save_ptz_state(act)
     except TimeoutError as exc:
-        return {'error': str(exc)}
+        return err(exc, code=ERROR_PTZ_BUSY)
 
 
 def optimize_image(source_path, output_path, max_width=DEFAULT_CAPTURE_MAX_WIDTH, quality=DEFAULT_CAPTURE_QUALITY):
@@ -273,10 +334,15 @@ def optimize_image(source_path, output_path, max_width=DEFAULT_CAPTURE_MAX_WIDTH
         }
 
 
+class UnsupportedSnapshotSchemeError(Exception):
+    """Raised when the snapshot URI uses a scheme we don't handle (e.g. rtsp://).
+    Mapped to ERROR_UNSUPPORTED upstream."""
+
+
 def download_snapshot_file(snapshot_uri, user, password, temp_path):
     parsed = urlparse(snapshot_uri)
     if parsed.scheme not in ('http', 'https'):
-        raise Exception(f'Unsupported snapshot URI scheme: {parsed.scheme}')
+        raise UnsupportedSnapshotSchemeError(f'Unsupported snapshot URI scheme: {parsed.scheme}')
 
     password_manager = HTTPPasswordMgrWithDefaultRealm()
     password_manager.add_password(None, f'{parsed.scheme}://{parsed.netloc}', user, password)
@@ -294,9 +360,14 @@ def download_snapshot_file(snapshot_uri, user, password, temp_path):
             shutil.copyfileobj(response, handle)
 
 
+class FFmpegMissingError(Exception):
+    """Raised when ffmpeg is not on PATH.
+    Mapped to ERROR_DEPENDENCY_MISSING upstream."""
+
+
 def capture_via_rtsp(rtsp_uri, temp_path):
     if shutil.which('ffmpeg') is None:
-        raise Exception('ffmpeg is required for RTSP frame capture but is not installed or not in PATH')
+        raise FFmpegMissingError('ffmpeg is required for RTSP frame capture but is not installed or not in PATH')
 
     command = [
         'ffmpeg',
@@ -315,8 +386,33 @@ def capture_via_rtsp(rtsp_uri, temp_path):
     subprocess.run(command, check=True, capture_output=True, text=True)
 
 
+def _pick_capture_error_code(exceptions):
+    """Among the exceptions hit during capture, prefer the most actionable
+    code so the Agent can give the user the right next step.
+
+    Priority: AUTH_FAILED > UNREACHABLE > TIMEOUT > NOT_ONVIF > DEPENDENCY_MISSING > UNSUPPORTED > CAPTURE_FAILED.
+    """
+    seen = []
+    for exc in exceptions:
+        if isinstance(exc, FFmpegMissingError):
+            seen.append(ERROR_DEPENDENCY_MISSING)
+        elif isinstance(exc, UnsupportedSnapshotSchemeError):
+            seen.append(ERROR_UNSUPPORTED)
+        else:
+            seen.append(classify_error(exc))
+    priority = [
+        ERROR_AUTH_FAILED, ERROR_UNREACHABLE, ERROR_TIMEOUT, ERROR_NOT_ONVIF,
+        ERROR_DEPENDENCY_MISSING, ERROR_UNSUPPORTED,
+    ]
+    for code in priority:
+        if code in seen:
+            return code
+    return ERROR_CAPTURE_FAILED
+
+
 def cmd_capture(cam, user, password, output_path, prefer='auto', max_width=DEFAULT_CAPTURE_MAX_WIDTH, quality=DEFAULT_CAPTURE_QUALITY):
     attempts = []
+    raised = []
     output_path = os.path.abspath(output_path)
 
     with tempfile.TemporaryDirectory(prefix='ai-watcher-capture-') as temp_dir:
@@ -339,8 +435,9 @@ def cmd_capture(cam, user, password, output_path, prefer='auto', max_width=DEFAU
                 }
             except Exception as exc:
                 attempts.append(f'snapshot_uri failed: {exc}')
+                raised.append(exc)
                 if prefer == 'snapshot':
-                    return {'error': '; '.join(attempts)}
+                    return err('; '.join(attempts), code=_pick_capture_error_code(raised))
 
         if prefer in ('auto', 'rtsp'):
             try:
@@ -359,9 +456,10 @@ def cmd_capture(cam, user, password, output_path, prefer='auto', max_width=DEFAU
                 }
             except Exception as exc:
                 attempts.append(f'rtsp failed: {exc}')
-                return {'error': '; '.join(attempts)}
+                raised.append(exc)
+                return err('; '.join(attempts), code=_pick_capture_error_code(raised))
 
-        return {'error': f'Unsupported capture preference: {prefer}'}
+        return err(f'Unsupported capture preference: {prefer}', code=ERROR_UNSUPPORTED)
 
 
 def main():
@@ -390,25 +488,21 @@ def main():
     try:
         port = parsed.port or int(conf.get('port', 80))
     except ValueError:
-        print(json.dumps({'ok': False, 'error': 'Invalid port value in scripts/config.ini'}))
+        print(json.dumps({'ok': False, **err('Invalid port value in scripts/config.ini', code=ERROR_INVALID_CONFIG)}))
         sys.exit(1)
 
     if not ip or not user or not password:
-        print(
-            json.dumps(
-                {
-                    'ok': False,
-                    'error': 'Missing camera configuration. Run the setup wizard first or provide --ip, --user, and --password.',
-                }
-            )
-        )
+        print(json.dumps({'ok': False, **err(
+            'Missing camera configuration. Run the setup wizard first or provide --ip, --user, and --password.',
+            code=ERROR_INVALID_CONFIG,
+        )}))
         sys.exit(1)
 
     # Fail fast on missing PTZ action before opening a SOAP connection — the
     # ONVIFCamera constructor performs network I/O (GetCapabilities), so an
     # invalid invocation should not pay that latency.
     if parsed.command == 'ptz' and not parsed.act:
-        print(json.dumps({'ok': False, 'error': 'Missing --act argument for PTZ command'}))
+        print(json.dumps({'ok': False, **err('Missing --act argument for PTZ command', code=ERROR_INVALID_ARGS)}))
         sys.exit(1)
 
     try:
@@ -445,12 +539,17 @@ def main():
             # parsed.act is guaranteed non-empty: validated before ONVIFCamera()
             result = cmd_ptz(cam, parsed.act, parsed.duration)
         else:
-            result = {'error': 'Command not yet implemented'}
+            result = err('Command not yet implemented', code=ERROR_UNSUPPORTED)
 
         print(json.dumps({'ok': 'error' not in result, 'result': result}, indent=2))
 
+    except NoMediaProfileError as exc:
+        print(json.dumps({'ok': False, **err(exc, code=ERROR_NO_MEDIA_PROFILE)}))
+        sys.exit(1)
     except Exception as exc:
-        print(json.dumps({'ok': False, 'error': str(exc)}))
+        # Outer net: connection refused / DNS / 401 / SOAP fault / etc.
+        # classify_error() handles the common cases; everything else falls to UNKNOWN.
+        print(json.dumps({'ok': False, **err(exc, source_exc=exc)}))
         sys.exit(1)
 
 
