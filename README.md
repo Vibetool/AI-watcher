@@ -49,6 +49,10 @@ Agent 会完成依赖安装，并引导你填写摄像头的 IP、端口、用�
 
 如果你想手动安装，也只需要几步。
 
+> ⚠️ **Network prerequisite**：大部分家用 / 入门级 ONVIF 摄像头的 Wi-Fi 只支持 **2.4 GHz** 网段，不支持 5 GHz。请确保运行 Agent 的设备（电脑、NAS、树莓派等）和摄像头处在 **同一个二层局域网** 里，并且能通过 2.4 GHz 频段访问到摄像头的 IP。
+>
+> 如果你的路由器把 2.4 GHz 和 5 GHz 拆成了独立 SSID 或划成了不同 VLAN，Agent 在 5 GHz / 访客网络 / 别的 VLAN 上是 **看不到摄像头** 的，ONVIF 发现和 SOAP 调用都会失败。
+
 ### 1. Clone the repo
 
 ```bash
