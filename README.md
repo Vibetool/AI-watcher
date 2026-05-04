@@ -39,9 +39,13 @@
 
 把这个仓库交给你的 Agent，然后说一句：
 
-> 帮我安装并配置 AI-watcher
+```text
+帮我安装并配置 [AI-watcher](https://github.com/Vibetool/AI-watcher)
+```
 
-Agent 会完成依赖安装，并引导你填写摄像头的 IP、端口、用户名和密码。
+Agent 会完成依赖安装，并引导你填写摄像头的连接信息。
+
+> 💡 **IP 和端口都是可选的。** 如果你不知道摄像头 IP / 端口，直接告诉 Agent "我不知道 IP" 即可，AI-Watcher 自带 ONVIF 局域网发现（基于 WS-Discovery / UDP 3702），会自动扫出同一局域网里的摄像头列表让你选。**用户名和密码** 默认通常是 `admin` / `admin`，如果厂商重置过，按摄像头说明书或贴纸上的为准。
 
 如果你的环境已经接好了 OpenClaw，这通常就是最简单的接入方式。
 
@@ -70,7 +74,15 @@ bash scripts/setup.sh
 
 ### 3. Create your local camera config
 
-复制示例配置，并填入你的摄像头信息。
+最省事的方式是跑一遍配置向导，它会自动扫描局域网里的 ONVIF 摄像头：
+
+```bash
+python3 scripts/setup_wizard.py
+```
+
+> 💡 **IP 不知道也没关系**：在 "Do you know the IP address" 这一步选 `n`，向导会通过 WS-Discovery 自动扫出局域网里的摄像头列表让你挑。**端口** 通常是 `80`，向导也会给默认值。
+
+或者手动写一份配置：
 
 ```bash
 cp scripts/config.example.ini scripts/config.ini
