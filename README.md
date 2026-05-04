@@ -2,56 +2,58 @@
 
 **Turn any ONVIF camera into an AI watcher.**
 
-让一个普通的 ONVIF 摄像头，变成一个会看、会转、会定时巡检、还能带图汇报的 **AI 视觉节点**。
+Make an ordinary ONVIF camera into an **AI vision node** that can see, pan, run scheduled patrols, and report back with evidence images.
 
-`AI Watcher` 面向 **OpenClaw** 工作流设计。它把摄像头连接、RTSP 获取、PTZ 控制、定时巡检和基于截图的分析串成一条可执行链路，适合那些想让 Agent 真正“持续盯现场”的场景。
+[简体中文](./README.zh-CN.md) · English
 
-**No app. No cloud dashboard. No heavy setup.**  
-只要你的摄像头支持 ONVIF，就可以很快接入。
+`AI Watcher` is built for the **OpenClaw** workflow. It chains camera connectivity, RTSP retrieval, PTZ control, scheduled patrols, and snapshot-based analysis into one executable pipeline — built for scenarios where you want an Agent to actually *keep an eye on* a place, not just produce a one-off demo.
+
+**No app. No cloud dashboard. No heavy setup.**
+If your camera speaks ONVIF, you can plug it in fast.
 
 ## Why people may want this
 
-很多项目都能“连上摄像头”，但很少项目真正解决下面这个问题：**连上之后，怎样把摄像头变成 Agent 可持续调用的视觉能力，而不是一次性 demo。**
+A lot of projects can "connect to a camera." Very few solve the next problem: **once you're connected, how do you turn that camera into a vision capability an Agent can call repeatedly — instead of a one-shot demo?**
 
-这个仓库的重点不是花哨 UI，而是把几个关键能力做好：
+The focus of this repo isn't a fancy UI. It's getting a few key capabilities right:
 
-| 你需要的结果 | AI Watcher 提供什么 |
+| What you need | What AI Watcher gives you |
 | --- | --- |
-| 让 Agent 看现场 | 获取 RTSP / Snapshot URI，接入图像分析链路 |
-| 让 Agent 改变视角 | 支持 PTZ 控制、停止与归位 |
-| 让 Agent 定时巡检 | 可接入 OpenClaw Heartbeat 做周期任务 |
-| 让结果可信 | 分析必须基于真实截图，强调附图返回 |
-| 让部署不折腾 | 安装和配置都尽量保持轻量 |
+| Let the Agent see the scene | Fetch RTSP / Snapshot URI, hand it off to your image analysis pipeline |
+| Let the Agent change the view | PTZ control with stop and home-position support |
+| Let the Agent run scheduled patrols | Plug into OpenClaw Heartbeat for periodic tasks |
+| Make results trustworthy | Analysis must be grounded in real snapshots; image attachment is the default |
+| Keep deployment painless | Install and configuration stay lightweight |
 
 ## What it does
 
-| 能力 | 说明 |
+| Capability | Description |
 | --- | --- |
-| Camera info | 读取摄像头厂商、型号、固件版本、序列号 |
-| Stream URI | 获取 RTSP 视频流地址 |
-| Snapshot URI | 获取快照地址 |
-| PTZ control | 上下左右、缩放、停止、归位，并带串行保护与自动停止机制 |
-| Conversational setup | 可由 Agent 通过对话引导完成配置 |
-| Watcher workflow | 可扩展成定时巡检和异常看护任务 |
-| Safe capture | 正式提供抓拍命令，并默认输出压缩后的 JPG |
+| Camera info | Read camera manufacturer, model, firmware version, serial number |
+| Stream URI | Get the RTSP video stream URL |
+| Snapshot URI | Get the snapshot URL |
+| PTZ control | Up / down / left / right / zoom / stop / home, with serial-access protection and auto-stop |
+| Conversational setup | An Agent can walk the user through configuration via chat |
+| Watcher workflow | Extensible into scheduled patrols and exception monitoring |
+| Safe capture | A first-class capture command that outputs a compressed JPG by default |
 
 ## Install with an agent
 
-把这个仓库交给你的 Agent，然后说一句：
+Hand this repo to your Agent and just say:
 
-> 帮我安装并配置 AI-watcher
+> Install and configure AI-watcher for me.
 
-Agent 会完成依赖安装，并引导你填写摄像头的 IP、端口、用户名和密码。
+The Agent will install dependencies and walk you through entering the camera's IP, port, username, and password.
 
-如果你的环境已经接好了 OpenClaw，这通常就是最简单的接入方式。
+If you already have OpenClaw running in your environment, this is usually the easiest way in.
 
 ## Manual setup
 
-如果你想手动安装，也只需要几步。
+Manual install only takes a few steps.
 
-> ⚠️ **Network prerequisite**：大部分家用 / 入门级 ONVIF 摄像头的 Wi-Fi 只支持 **2.4 GHz** 网段，不支持 5 GHz。请确保运行 Agent 的设备（电脑、NAS、树莓派等）和摄像头处在 **同一个二层局域网** 里，并且能通过 2.4 GHz 频段访问到摄像头的 IP。
+> ⚠️ **Network prerequisite**: most consumer / entry-level ONVIF cameras only support **2.4 GHz** Wi-Fi, not 5 GHz. Make sure the device running the Agent (laptop, NAS, Raspberry Pi, etc.) is on the **same Layer-2 LAN** as the camera and can reach the camera's IP over the 2.4 GHz band.
 >
-> 如果你的路由器把 2.4 GHz 和 5 GHz 拆成了独立 SSID 或划成了不同 VLAN，Agent 在 5 GHz / 访客网络 / 别的 VLAN 上是 **看不到摄像头** 的，ONVIF 发现和 SOAP 调用都会失败。
+> If your router splits 2.4 GHz and 5 GHz into separate SSIDs, or puts them on different VLANs, an Agent on 5 GHz / a guest network / a different VLAN **will not see the camera** — ONVIF discovery and SOAP calls will both fail.
 
 ### 1. Clone the repo
 
@@ -66,17 +68,17 @@ cd AI-watcher
 bash scripts/setup.sh
 ```
 
-安装和运行时请尽量使用同一个 `python3` 解释器，避免多 Python 环境下出现依赖装好了但命令找不到模块的情况。
+Use the same `python3` interpreter for both installation and runtime, so you don't end up with dependencies installed against one Python while the command runs against another.
 
 ### 3. Create your local camera config
 
-复制示例配置，并填入你的摄像头信息。
+Copy the example config and fill in your camera details.
 
 ```bash
 cp scripts/config.example.ini scripts/config.ini
 ```
 
-然后编辑 `scripts/config.ini`：
+Then edit `scripts/config.ini`:
 
 ```ini
 [camera]
@@ -96,76 +98,77 @@ python3 scripts/onvif_ctrl.py capture --output /tmp/snapshot.jpg --max-width 128
 python3 scripts/onvif_ctrl.py ptz --act left --duration 1.0
 ```
 
-如果能正常返回 JSON，说明摄像头已经接好了。对于抓拍，当前推荐优先使用新的 `capture` 命令，而不是自己直接把原始 RTSP 截帧结果塞进消息正文。`capture` 会输出压缩后的 JPG，更适合 MCP、企业微信或其他有 payload 限制的通道。
+If you get JSON back, the camera is wired up. For snapshots, prefer the new `capture` command rather than piping a raw RTSP frame straight into a message body. `capture` outputs a compressed JPG, which fits better with MCP, WeChat Work, or any channel with payload limits.
 
 ## How it feels in practice
 
-你可以把它理解成一个给 Agent 使用的“摄像头动作层”。
+Think of it as a "camera action layer" for your Agent.
 
 ```text
-用户说：去看一下办公室门口有没有人
--> Agent 读取摄像头配置
--> 获取视频流或截图
--> 如有需要，控制 PTZ 转向
--> 基于真实画面做分析
--> 返回结论，并附上截图证据
+User: go check if anyone is at the office door
+-> Agent reads the camera config
+-> Fetches the video stream or a snapshot
+-> Pans the camera if needed
+-> Runs analysis grounded in the actual frame
+-> Returns the conclusion, with the snapshot attached as evidence
 ```
 
-这比单纯返回一个 RTSP 地址更有用，因为它更接近真实的自动巡检流程。
+That's more useful than just returning an RTSP URL, because it matches what an actual automated patrol flow looks like.
 
-另外，PTZ 控制现在默认要求带正数 `duration`，这样每次转动后都会自动发送 `stop`，可以降低部分摄像头在连续请求时出现 500 报错或卡死的概率。
+PTZ control now requires a positive `duration` by default, so every move is followed by an automatic `stop`. This noticeably reduces the chance of 500 errors or hangs that some cameras hit under back-to-back requests.
 
 ## Good use cases
 
-| 场景 | 这个仓库能帮你做什么 |
+| Scenario | What this repo helps you do |
 | --- | --- |
-| 办公室夜间看护 | 定时抓拍，发现异常活动时汇报 |
-| 仓库或门店巡检 | 按时间检查特定区域状态 |
-| 老人 / 宠物看护 | 定点查看并输出简短结论 |
-| 安防原型验证 | 作为更复杂 Agent 巡检系统的底座 |
+| After-hours office watch | Periodic snapshots, alert on unusual activity |
+| Warehouse or store patrol | Time-based checks of specific zones |
+| Elderly / pet care | Check in on a fixed spot and produce a short summary |
+| Security prototyping | A foundation for more complex Agent patrol systems |
 
-## Current limitation, and what’s next
+## Current limitation, and what's next
 
-目前这个项目一个比较大的局限是：**图像采集仍然主要依赖定时任务驱动。** 这意味着当前版本更适合做周期性巡检、定点看护和规则化检查，但对于更实时、更主动的 Watcher 场景，还有继续进化的空间。
+The biggest current limitation: **image capture is still mostly cron-driven.** That makes today's version a good fit for periodic patrols, fixed-spot watching, and rule-based checks — but for truly real-time, proactive Watcher scenarios there's still room to grow.
 
-接下来，我们会逐步引入更多真正适合 **Watcher 模式** 的 AI 摄像头能力。
+Next, we'll roll in more capabilities that actually fit the **Watcher mode** of AI cameras.
 
-| 下一步方向 | 会带来什么变化 |
+| Next direction | What it changes |
 | --- | --- |
-| 支持本地目标检测的 AI 摄像头 | 摄像头可先在本地做目标检测，再主动上传关键图像到云端分析，减少无效采集，提高触发效率 |
-| 支持本地运行大模型的 AI 摄像头 | 图像不需要上传到云端，识别更快、隐私更好，但设备成本也会更高 |
+| AI cameras with on-device object detection | The camera filters locally and only uploads key frames to the cloud for analysis — fewer wasted captures, better trigger latency |
+| AI cameras running large models locally | Frames don't leave the device — faster recognition, better privacy, at higher hardware cost |
 
-这也意味着，`AI Watcher` 的长期方向不只是“让普通 ONVIF 摄像头接入 Agent”，还包括逐步兼容更聪明的前端设备，让系统从“定时看一眼”走向“主动发现、主动上报、快速响应”。
+Long term, `AI Watcher` is more than "let any ONVIF camera talk to an Agent." It's about gradually being compatible with smarter edge devices, taking the system from "look every N minutes" toward "detect, report, and respond proactively."
 
 ## Project structure
 
-| 路径 | 作用 |
+| Path | Purpose |
 | --- | --- |
-| `README.md` | 项目说明 |
-| `SKILL.md` | 面向 Agent 的技能说明 |
-| `SKILL.toml` | 技能元数据 |
-| `scripts/onvif_ctrl.py` | ONVIF 控制主脚本 |
-| `scripts/setup.sh` | 依赖安装脚本 |
-| `scripts/setup_wizard.py` | 本地配置向导 |
-| `scripts/config.example.ini` | 配置模板 |
+| `README.md` | Project overview (English) |
+| `README.zh-CN.md` | Project overview (Simplified Chinese) |
+| `SKILL.md` | Skill description for Agents |
+| `SKILL.toml` | Skill metadata |
+| `scripts/onvif_ctrl.py` | Main ONVIF control script |
+| `scripts/setup.sh` | Dependency install script |
+| `scripts/setup_wizard.py` | Local configuration wizard |
+| `scripts/config.example.ini` | Config template |
 
 ## Design principles
 
-这个项目刻意保持简单，因为它的目标不是做一个“大而全”的监控平台，而是做一个足够清晰、足够可靠的 Agent 能力层。
+This project deliberately stays small. The goal isn't to build a big-and-everything surveillance platform — it's to be a clear, reliable capability layer for Agents.
 
-| 原则 | 含义 |
+| Principle | Meaning |
 | --- | --- |
-| Keep setup light | 安装和接入尽量简单 |
-| Evidence first | 先有截图，再有分析 |
-| Agent-ready | 设计上服务于自动化巡检，而不是手工操作为主 |
-| Build on open protocols | 基于 ONVIF，减少私有设备锁定 |
+| Keep setup light | Install and onboarding stay minimal |
+| Evidence first | Snapshot first, analysis second |
+| Agent-ready | Designed for automated patrol, not manual operation |
+| Build on open protocols | Built on ONVIF to avoid vendor lock-in |
 
 ## Contributing
 
-如果你想继续把它做强，最值得补充的方向包括更多品牌兼容性、事件订阅、夜视策略、告警通道以及更强的巡检编排。
+The most valuable directions to expand this are: broader brand compatibility, event subscriptions, night-vision strategies, alert channels, and stronger patrol orchestration.
 
-如果你想做的不是“再写一个摄像头脚本”，而是让摄像头真正成为 Agent 的眼睛，这个仓库就是为这个方向准备的。
+If what you want isn't "yet another camera script" but to make a camera actually function as an Agent's eyes, this repo is for you.
 
 ## Procurement and partnership
 
-如果你需要采购对应的摄像头，或者企业希望进一步合作，欢迎联系：**team@vibetool.ai**。
+If you need to source compatible cameras, or if your team is interested in deeper collaboration, reach out: **team@vibetool.ai**.
