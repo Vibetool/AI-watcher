@@ -41,7 +41,9 @@
 
 把这个仓库交给你的 Agent，然后说一句：
 
-> 帮我安装并配置 AI-watcher
+```text
+帮我安装并配置 [AI-watcher](https://github.com/Vibetool/AI-watcher)
+```
 
 Agent 会完成依赖安装，并引导你填写摄像头的 IP、端口、用户名和密码。
 

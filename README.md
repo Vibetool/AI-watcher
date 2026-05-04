@@ -41,7 +41,9 @@ The focus of this repo isn't a fancy UI. It's getting a few key capabilities rig
 
 Hand this repo to your Agent and just say:
 
-> Install and configure AI-watcher for me.
+```text
+Install and configure [AI-watcher](https://github.com/Vibetool/AI-watcher) for me.
+```
 
 The Agent will install dependencies and walk you through entering the camera's IP, port, username, and password.
 
