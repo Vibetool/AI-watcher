@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse, urlunparse
 from urllib.request import (
     HTTPBasicAuthHandler,
     HTTPDigestAuthHandler,
@@ -365,6 +365,44 @@ class FFmpegMissingError(Exception):
     Mapped to ERROR_DEPENDENCY_MISSING upstream."""
 
 
+def inject_rtsp_credentials(rtsp_uri, user, password):
+    """Return an RTSP URL with `user:password@` injected into the netloc.
+
+    ONVIF GetStreamUri typically returns a credential-less URL (e.g.
+    `rtsp://192.168.1.60:554/stream1`), but many cameras (TP-Link,
+    Reolink, some Dahua firmwares) require RTSP-level Basic/Digest auth
+    and ffmpeg has no reliable cross-version flag for that — embedding
+    creds in the URL is the portable answer.
+
+    Behavior:
+    - If `rtsp_uri` already contains a username, return it unchanged
+      (some cameras pre-embed creds in the ONVIF response).
+    - If `user` or `password` is falsy, return `rtsp_uri` unchanged.
+    - Credentials are percent-encoded so `@`, `:`, `/`, `%`, etc. in
+      passwords don't break the URL.
+    - IPv6 hostnames are wrapped in brackets per RFC 3986.
+    """
+    if not user or not password:
+        return rtsp_uri
+
+    parsed = urlparse(rtsp_uri)
+    if parsed.username:
+        return rtsp_uri
+
+    host = parsed.hostname or ''
+    if ':' in host:  # IPv6 literal — bracket per RFC 3986
+        host = f'[{host}]'
+
+    user_q = quote(str(user), safe='')
+    password_q = quote(str(password), safe='')
+
+    netloc = f'{user_q}:{password_q}@{host}'
+    if parsed.port:
+        netloc = f'{netloc}:{parsed.port}'
+
+    return urlunparse(parsed._replace(netloc=netloc))
+
+
 def capture_via_rtsp(rtsp_uri, temp_path):
     if shutil.which('ffmpeg') is None:
         raise FFmpegMissingError('ffmpeg is required for RTSP frame capture but is not installed or not in PATH')
@@ -444,7 +482,11 @@ def cmd_capture(cam, user, password, output_path, prefer='auto', max_width=DEFAU
                 stream_result = cmd_stream_uri(cam)
                 if 'StreamUri' not in stream_result:
                     raise Exception(stream_result.get('error', 'RTSP stream URI not available'))
-                capture_via_rtsp(stream_result['StreamUri'], raw_path)
+                # ONVIF stream URIs are typically credential-less; inject
+                # auth so cameras that require RTSP Basic/Digest (TP-Link,
+                # Reolink, etc.) don't 401 ffmpeg.
+                rtsp_uri = inject_rtsp_credentials(stream_result['StreamUri'], user, password)
+                capture_via_rtsp(rtsp_uri, raw_path)
                 image_info = optimize_image(raw_path, output_path, max_width=max_width, quality=quality)
                 return {
                     'status': 'captured',
